@@ -1,0 +1,307 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                    String      @id @default(cuid())
+  walletAddress         String      @unique
+  username              String      @unique
+  email                 String?     @unique
+  displayName           String?
+  avatarUrl             String?
+  bio                   String?
+  totalXP               BigInt      @default(0)
+  currentStreak         Int         @default(0)
+  longestStreak         Int         @default(0)
+  coursesCompleted      Int         @default(0)
+  lastActivityDate      DateTime?
+  createdAt             DateTime    @default(now())
+  updatedAt             DateTime    @updatedAt
+  
+  // Relations
+  enrollments           CourseEnrollment[]
+  quizAttempts          QuizAttempt[]
+  achievements          UserAchievement[]
+  certificates          Certificate[]
+  referredBy            String?
+  referrer              User?       @relation("Referrals", fields: [referredBy], references: [id])
+  referrals             User[]      @relation("Referrals")
+  skillMastery          SkillMastery[]
+  leaderboardStats      LeaderboardStats?
+  rewardHistory         RewardHistory[]
+  notifications         Notification[]
+}
+
+model Course {
+  id                    String      @id @default(cuid())
+  title                 String
+  description           String
+  content               String?     @db.Text
+  category              String
+  difficulty            String      // "beginner", "intermediate", "advanced", "expert"
+  xpReward              BigInt      @default(100)
+  createdBy             String
+  imageUrl              String?
+  duration              Int?        // in minutes
+  skillsTaught          String[]    @default([])
+  published             Boolean     @default(false)
+  createdAt             DateTime    @default(now())
+  updatedAt             DateTime    @updatedAt
+  
+  // Relations
+  lessons               Lesson[]
+  quizzes               Quiz[]
+  enrollments           CourseEnrollment[]
+}
+
+model Lesson {
+  id                    String      @id @default(cuid())
+  courseId              String
+  title                 String
+  content               String      @db.Text
+  order                 Int
+  videoUrl              String?
+  duration              Int?        // in minutes
+  resources             String[]    @default([])
+  createdAt             DateTime    @default(now())
+  updatedAt             DateTime    @updatedAt
+  
+  // Relations
+  course                Course      @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  
+  @@index([courseId])
+}
+
+model CourseEnrollment {
+  id                    String      @id @default(cuid())
+  userId                String
+  courseId              String
+  enrolledAt            DateTime    @default(now())
+  completedAt           DateTime?
+  completionPercentage  Int         @default(0)
+  lessonsCompleted      Int         @default(0)
+  xpEarned              BigInt      @default(0)
+  completed             Boolean     @default(false)
+  
+  // Relations
+  user                  User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course                Course      @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, courseId])
+  @@index([userId])
+  @@index([courseId])
+}
+
+model Quiz {
+  id                    String      @id @default(cuid())
+  courseId              String
+  title                 String
+  description           String?
+  questions             Question[]
+  passingScore          Int         @default(70)
+  timeLimit             Int?        // in minutes
+  createdAt             DateTime    @default(now())
+  updatedAt             DateTime    @updatedAt
+  
+  // Relations
+  course                Course      @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  attempts              QuizAttempt[]
+  
+  @@index([courseId])
+}
+
+model Question {
+  id                    String      @id @default(cuid())
+  quizId                String
+  type                  String      // "multiple_choice", "true_false", "short_answer"
+  question              String      @db.Text
+  options               String[]    // JSON array for multiple choice
+  correctAnswer         String      @db.Text
+  order                 Int
+  points                Int         @default(1)
+  explanation           String?
+  
+  // Relations
+  quiz                  Quiz        @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  
+  @@index([quizId])
+}
+
+model QuizAttempt {
+  id                    String      @id @default(cuid())
+  userId                String
+  quizId                String
+  score                 Int
+  maxScore              Int
+  timeSpent             Int?        // in seconds
+  answers               String      @db.Text // JSON array of answers
+  passed                Boolean
+  attemptNumber         Int
+  createdAt             DateTime    @default(now())
+  
+  // Relations
+  user                  User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  quiz                  Quiz        @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@index([quizId])
+}
+
+model Skill {
+  id                    String      @id @default(cuid())
+  name                  String      @unique
+  description           String?
+  category              String
+  imageUrl              String?
+  createdAt             DateTime    @default(now())
+  
+  // Relations
+  mastery               SkillMastery[]
+  courses               Course[]    // through implicit relation via skillsTaught
+}
+
+model SkillMastery {
+  id                    String      @id @default(cuid())
+  userId                String
+  skillId               String
+  proficiency           Int         // 0-100
+  certificateIssued     Boolean     @default(false)
+  masteredAt            DateTime?
+  createdAt             DateTime    @default(now())
+  updatedAt             DateTime    @updatedAt
+  
+  // Relations
+  user                  User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  skill                 Skill       @relation(fields: [skillId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, skillId])
+  @@index([userId])
+  @@index([skillId])
+}
+
+model Badge {
+  id                    String      @id @default(cuid())
+  name                  String
+  description           String
+  imageUrl              String
+  criteria              String      // JSON description of how to earn
+  rarity                String      // "common", "uncommon", "rare", "epic", "legendary"
+  createdAt             DateTime    @default(now())
+  
+  // Relations
+  achievements          UserAchievement[]
+}
+
+model UserAchievement {
+  id                    String      @id @default(cuid())
+  userId                String
+  badgeId               String
+  earnedAt              DateTime    @default(now())
+  verified              Boolean     @default(false)
+  nftMinted             Boolean     @default(false)
+  contractAddress       String?     // On-chain contract address
+  
+  // Relations
+  user                  User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  badge                 Badge       @relation(fields: [badgeId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, badgeId])
+  @@index([userId])
+  @@index([badgeId])
+}
+
+model Certificate {
+  id                    String      @id @default(cuid())
+  userId                String
+  courseId              String
+  certificateNumber     String      @unique
+  issuedAt              DateTime    @default(now())
+  expiresAt             DateTime?
+  verificationCode      String      @unique
+  ipfsHash              String?     // IPFS hash for decentralized storage
+  contractAddress       String?     // On-chain NFT contract address
+  tokenId               String?     // NFT token ID
+  
+  // Relations
+  user                  User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@index([verificationCode])
+}
+
+model LeaderboardStats {
+  id                    String      @id @default(cuid())
+  userId                String      @unique
+  rank                  Int
+  totalXP               BigInt
+  coursesCompleted      Int
+  longestStreak         Int
+  updatedAt             DateTime    @updatedAt
+  
+  // Relations
+  user                  User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model CompetitionReward {
+  id                    String      @id @default(cuid())
+  period                String      // "weekly", "monthly"
+  startDate             DateTime
+  endDate               DateTime
+  firstPlaceReward      BigInt
+  secondPlaceReward     BigInt
+  thirdPlaceReward      BigInt
+  winnerId              String?
+  createdAt             DateTime    @default(now())
+}
+
+model RewardHistory {
+  id                    String      @id @default(cuid())
+  userId                String
+  amount                BigInt
+  reason                String      // "course_completion", "streak_bonus", "milestone", "referral", "competition"
+  contractTxHash        String?     // Stellar transaction hash
+  distributedAt         DateTime    @default(now())
+  
+  // Relations
+  user                  User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@index([distributedAt])
+}
+
+model Notification {
+  id                    String      @id @default(cuid())
+  userId                String
+  type                  String      // "achievement", "reward", "course_update", "streakreminder"
+  title                 String
+  message               String
+  read                  Boolean     @default(false)
+  actionUrl             String?
+  createdAt             DateTime    @default(now())
+  
+  // Relations
+  user                  User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model Analytics {
+  id                    String      @id @default(cuid())
+  date                  DateTime    @default(now())
+  totalUsers            Int
+  activeUsers           Int
+  totalCoursesCompleted Int
+  totalXPDistributed    BigInt
+  averageQuizScore      Float
+  
+  @@unique([date])
+}

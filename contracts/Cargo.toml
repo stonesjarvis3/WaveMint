@@ -1,0 +1,6 @@
+[workspace]
+members = ["launch", "bonding_curve", "liquidity_migration"]
+resolver = "2"
+
+[workspace.dependencies]
+soroban-sdk = { version = "21.0.0", features = ["testutils"] }
